@@ -31,13 +31,13 @@ const RouletteWheel: FC<RouletteWheelProps> = ({ tasks, onSpinComplete, disabled
       spinSound.current = new Tone.Player({
         url: "/sounds/spin.mp3",
         onload: () => setAudioLoaded(prev => ({ ...prev, spin: true })),
-        onerror: (error) => console.error("Error loading spin sound:", error),
+        onerror: (error) => console.warn("Failed to load spin sound (optional, ensure /public/sounds/spin.mp3 exists):", error),
       }).toDestination();
 
       winSound.current = new Tone.Player({
         url: "/sounds/win.mp3",
         onload: () => setAudioLoaded(prev => ({ ...prev, win: true })),
-        onerror: (error) => console.error("Error loading win sound:", error),
+        onerror: (error) => console.warn("Failed to load win sound (optional, ensure /public/sounds/win.mp3 exists):", error),
       }).toDestination();
       
       clickSound.current = new Tone.MembraneSynth().toDestination();
@@ -60,13 +60,13 @@ const RouletteWheel: FC<RouletteWheelProps> = ({ tasks, onSpinComplete, disabled
         if (audioLoaded.spin) {
           spinSound.current.start();
         } else {
-          console.warn("Spin sound not loaded yet or player not initialized. Ensure /sounds/spin.mp3 exists in public folder.");
+          console.warn("Spin sound not played because it's not loaded. Ensure /public/sounds/spin.mp3 exists.");
         }
       } else if (soundType === 'win' && winSound.current) {
         if (audioLoaded.win) {
           winSound.current.start();
         } else {
-          console.warn("Win sound not loaded yet or player not initialized. Ensure /sounds/win.mp3 exists in public folder.");
+          console.warn("Win sound not played because it's not loaded. Ensure /public/sounds/win.mp3 exists.");
         }
       } else if (soundType === 'click' && clickSound.current) {
         clickSound.current.triggerAttackRelease("C2", "8n");
@@ -157,3 +157,4 @@ const RouletteWheel: FC<RouletteWheelProps> = ({ tasks, onSpinComplete, disabled
 };
 
 export default RouletteWheel;
+
