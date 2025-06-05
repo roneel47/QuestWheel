@@ -1,3 +1,191 @@
-export default function Home() {
-  return <></>;
+"use client";
+
+import { useState, useEffect, useCallback } from 'react';
+import type { Task, PlayerStats } from '@/lib/types';
+import { XP_PER_TASK, XP_FOR_NEXT_LEVEL_BASE } from '@/lib/constants';
+import useLocalStorage from '@/hooks/useLocalStorage';
+
+import Header from '@/components/questwheel/Header';
+import TaskInput from '@/components/questwheel/TaskInput';
+import TaskList from '@/components/questwheel/TaskList';
+import RouletteWheel from '@/components/questwheel/RouletteWheel';
+import ConfettiEffect from '@/components/questwheel/ConfettiEffect';
+import { Button } from '@/components/ui/button';
+import { useToast } from "@/hooks/use-toast";
+import { Sun, Moon } from "lucide-react";
+
+
+export default function QuestWheelPage() {
+  const { toast } = useToast();
+  const [tasks, setTasks] = useLocalStorage<Task[]>('questwheel-tasks', []);
+  const [playerStats, setPlayerStats] = useLocalStorage<PlayerStats>('questwheel-playerStats', {
+    xp: 0,
+    level: 0,
+    lastSpinTimestamp: null,
+  });
+
+  const [selectedTaskToday, setSelectedTaskToday] = useState<Task | null>(null);
+  const [taskCompletedToday, setTaskCompletedToday] = useState<boolean>(false);
+  const [showConfetti, setShowConfetti] = useState<boolean>(false);
+  const [isClient, setIsClient] = useState(false);
+  const [darkMode, setDarkMode] = useLocalStorage<boolean>('questwheel-darkMode', true);
+
+
+  useEffect(() => {
+    setIsClient(true);
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  const canSpinToday = useCallback(() => {
+    if (!playerStats.lastSpinTimestamp) return true;
+    const lastSpinDate = new Date(playerStats.lastSpinTimestamp).toDateString();
+    const currentDate = new Date().toDateString();
+    return lastSpinDate !== currentDate;
+  }, [playerStats.lastSpinTimestamp]);
+
+  const [spinAvailable, setSpinAvailable] = useState(false);
+
+   useEffect(() => {
+    if (isClient) { // Ensure this runs only on the client
+      setSpinAvailable(canSpinToday());
+      // If a spin was made today, check if there was a selected task that wasn't completed.
+      const storedSelectedTask = localStorage.getItem('questwheel-selectedTaskToday');
+      const storedTaskCompleted = localStorage.getItem('questwheel-taskCompletedToday');
+      if (!canSpinToday() && storedSelectedTask) {
+          setSelectedTaskToday(JSON.parse(storedSelectedTask));
+          if (storedTaskCompleted) {
+            setTaskCompletedToday(JSON.parse(storedTaskCompleted));
+          }
+      }
+    }
+  }, [isClient, playerStats.lastSpinTimestamp, canSpinToday]);
+
+
+  const addTask = (text: string) => {
+    const newTask: Task = { id: Date.now().toString(), text, createdAt: Date.now() };
+    setTasks(prevTasks => [...prevTasks, newTask]);
+    toast({ title: "Quest Added!", description: `"${text}" has been added to your log.` });
+  };
+
+  const deleteTask = (id: string) => {
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+    if (selectedTaskToday?.id === id) {
+      setSelectedTaskToday(null);
+      localStorage.removeItem('questwheel-selectedTaskToday');
+    }
+    toast({ title: "Quest Removed", description: "The quest has been removed from your log.", variant: "destructive" });
+  };
+
+  const handleSpinComplete = (selectedTask: Task) => {
+    setSelectedTaskToday(selectedTask);
+    setTaskCompletedToday(false);
+    setShowConfetti(true);
+    setPlayerStats(prev => ({ ...prev, lastSpinTimestamp: Date.now() }));
+    setSpinAvailable(false);
+    localStorage.setItem('questwheel-selectedTaskToday', JSON.stringify(selectedTask));
+    localStorage.setItem('questwheel-taskCompletedToday', JSON.stringify(false));
+    toast({ title: "Quest Selected!", description: `Your quest for today is: "${selectedTask.text}"` });
+    setTimeout(() => setShowConfetti(false), 4000);
+  };
+
+  const completeTask = (task: Task) => {
+    if (task.id === selectedTaskToday?.id && !taskCompletedToday) {
+      const newXP = playerStats.xp + XP_PER_TASK;
+      const newLevel = Math.floor(newXP / XP_FOR_NEXT_LEVEL_BASE);
+      
+      let levelUpMessage = "";
+      if (newLevel > playerStats.level) {
+        levelUpMessage = `Congratulations! You've reached Level ${newLevel}!`;
+      }
+
+      setPlayerStats(prev => ({
+        ...prev,
+        xp: newXP,
+        level: newLevel,
+      }));
+      setTaskCompletedToday(true);
+      localStorage.setItem('questwheel-taskCompletedToday', JSON.stringify(true));
+      toast({ title: "Quest Complete!", description: `You earned ${XP_PER_TASK} XP! ${levelUpMessage}` });
+    }
+  };
+  
+  const toggleDarkMode = () => {
+    setDarkMode(prev => !prev);
+  };
+
+
+  if (!isClient) {
+    // Render a loading state or null during SSR/SSG
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-background text-foreground">
+            <div className="animate-pulse text-2xl font-headline">Loading QuestWheel...</div>
+        </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground font-body">
+      <ConfettiEffect active={showConfetti} />
+      <div className="w-full max-w-2xl space-y-6">
+        <div className="absolute top-4 right-4">
+            <Button onClick={toggleDarkMode} variant="outline" size="icon" aria-label="Toggle dark mode">
+                {darkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
+            </Button>
+        </div>
+        <Header level={playerStats.level} currentXP={playerStats.xp} />
+        
+        <main className="space-y-8">
+          <section aria-labelledby="roulette-section">
+            <h2 id="roulette-section" className="sr-only">Roulette Wheel</h2>
+            <RouletteWheel
+              tasks={tasks}
+              onSpinComplete={handleSpinComplete}
+              disabled={!spinAvailable || tasks.length === 0}
+              buttonText={!spinAvailable ? "Spin Used Today!" : "Spin Your Quest!"}
+            />
+          </section>
+
+          {selectedTaskToday && !taskCompletedToday && spinAvailable === false && (
+             <Card className="mt-4 p-4 text-center bg-primary/10 border-primary">
+                <CardTitle className="text-lg text-primary">Today's Quest: {selectedTaskToday.text}</CardTitle>
+                <CardDescription>Complete this quest to earn XP!</CardDescription>
+                 <Button onClick={() => completeTask(selectedTaskToday)} className="mt-2" variant="default">
+                    Mark as Complete ({XP_PER_TASK} XP)
+                </Button>
+             </Card>
+          )}
+
+          {selectedTaskToday && taskCompletedToday && (
+             <Card className="mt-4 p-4 text-center bg-green-500/10 border-green-500">
+                <CardTitle className="text-lg text-green-400">Quest Completed: {selectedTaskToday.text}</CardTitle>
+                <CardDescription>Great job! You earned {XP_PER_TASK} XP for this quest.</CardDescription>
+             </Card>
+          )}
+          
+          <section aria-labelledby="task-input-section">
+             <h2 id="task-input-section" className="sr-only">Add New Task</h2>
+            <TaskInput onAddTask={addTask} />
+          </section>
+
+          <section aria-labelledby="task-list-section">
+            <h2 id="task-list-section" className="sr-only">Task List</h2>
+            <TaskList
+              tasks={tasks}
+              onDeleteTask={deleteTask}
+              onCompleteTask={completeTask}
+              selectedTaskToday={selectedTaskToday}
+              taskCompletedToday={taskCompletedToday}
+            />
+          </section>
+        </main>
+        <footer className="text-center text-sm text-muted-foreground mt-8 py-4">
+          <p>&copy; {new Date().getFullYear()} {APP_NAME}. Adventure Awaits!</p>
+        </footer>
+      </div>
+    </div>
+  );
 }
