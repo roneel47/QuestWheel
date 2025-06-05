@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,14 +11,18 @@ import XpPerDayChart from '@/components/stats/XpPerDayChart';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TrendingUp, BarChartBig, Users, Award, CalendarDays, CheckCircle } from 'lucide-react';
 
+// Define initial values outside the component to ensure stable references
+const INITIAL_PLAYER_STATS_FOR_STATS_PAGE: PlayerStats = {
+  xp: 0,
+  level: 0,
+  lastSpinTimestamp: null,
+  tasksCompletedTotal: 0,
+};
+const INITIAL_ACTIVITY_LOG_FOR_STATS_PAGE: DailyActivity[] = [];
+
 export default function StatsPage() {
-  const [playerStats] = useLocalStorage<PlayerStats>('questwheel-playerStats', {
-    xp: 0,
-    level: 0,
-    lastSpinTimestamp: null,
-    tasksCompletedTotal: 0,
-  });
-  const [activityLog] = useLocalStorage<DailyActivity[]>('questwheel-activityLog', []);
+  const [playerStats] = useLocalStorage<PlayerStats>('questwheel-playerStats', INITIAL_PLAYER_STATS_FOR_STATS_PAGE);
+  const [activityLog] = useLocalStorage<DailyActivity[]>('questwheel-activityLog', INITIAL_ACTIVITY_LOG_FOR_STATS_PAGE);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -35,14 +40,13 @@ export default function StatsPage() {
   const daysPlayed = new Set(activityLog.map(a => a.date)).size;
   const nextLevelXp = (playerStats.level + 1) * XP_FOR_NEXT_LEVEL_BASE;
 
-  // Prepare data for charts (basic for now, can be expanded)
   const tasksOverTimeData = activityLog
-    .slice(-30) // Last 30 entries (assuming sorted by date)
+    .slice(-30) 
     .map(entry => ({ name: new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), tasks: entry.tasksCompleted }))
-    .reverse(); // if sorted desc, reverse for chart
+    .reverse(); 
 
   const xpPerDayData = activityLog
-    .slice(-7) // Last 7 entries
+    .slice(-7) 
     .map(entry => ({ name: new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short' }), xp: entry.xpEarned }))
     .reverse();
 

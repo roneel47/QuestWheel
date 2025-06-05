@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -14,17 +15,22 @@ import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
+// Define initial values outside the component to ensure stable references
+const INITIAL_TASKS: Task[] = [];
+const INITIAL_PLAYER_STATS: PlayerStats = {
+  xp: 0,
+  level: 0,
+  lastSpinTimestamp: null,
+  tasksCompletedTotal: 0,
+};
+const INITIAL_ACTIVITY_LOG: DailyActivity[] = [];
+
 
 export default function QuestWheelPage() {
   const { toast } = useToast();
-  const [tasks, setTasks] = useLocalStorage<Task[]>('questwheel-tasks', []);
-  const [playerStats, setPlayerStats] = useLocalStorage<PlayerStats>('questwheel-playerStats', {
-    xp: 0,
-    level: 0,
-    lastSpinTimestamp: null,
-    tasksCompletedTotal: 0,
-  });
-  const [activityLog, setActivityLog] = useLocalStorage<DailyActivity[]>('questwheel-activityLog', []);
+  const [tasks, setTasks] = useLocalStorage<Task[]>('questwheel-tasks', INITIAL_TASKS);
+  const [playerStats, setPlayerStats] = useLocalStorage<PlayerStats>('questwheel-playerStats', INITIAL_PLAYER_STATS);
+  const [activityLog, setActivityLog] = useLocalStorage<DailyActivity[]>('questwheel-activityLog', INITIAL_ACTIVITY_LOG);
 
   const [selectedTaskToday, setSelectedTaskToday] = useState<Task | null>(null);
   const [taskCompletedToday, setTaskCompletedToday] = useState<boolean>(false);
@@ -46,14 +52,29 @@ export default function QuestWheelPage() {
 
    useEffect(() => {
     if (isClient) { 
-      setSpinAvailable(canSpinToday());
+      const available = canSpinToday();
+      setSpinAvailable(available);
       const storedSelectedTask = localStorage.getItem('questwheel-selectedTaskToday');
       const storedTaskCompleted = localStorage.getItem('questwheel-taskCompletedToday');
-      if (!canSpinToday() && storedSelectedTask) {
-          setSelectedTaskToday(JSON.parse(storedSelectedTask));
-          if (storedTaskCompleted) {
-            setTaskCompletedToday(JSON.parse(storedTaskCompleted));
+      
+      if (!available && storedSelectedTask) {
+          try {
+            const parsedTask = JSON.parse(storedSelectedTask);
+            setSelectedTaskToday(parsedTask);
+            if (storedTaskCompleted) {
+              setTaskCompletedToday(JSON.parse(storedTaskCompleted));
+            }
+          } catch (e) {
+            console.warn("Error parsing selected task from localStorage", e);
+            localStorage.removeItem('questwheel-selectedTaskToday');
+            localStorage.removeItem('questwheel-taskCompletedToday');
           }
+      } else if (available) {
+        // If spin is available, clear any stale selected task from previous day
+        setSelectedTaskToday(null);
+        setTaskCompletedToday(false);
+        localStorage.removeItem('questwheel-selectedTaskToday');
+        localStorage.removeItem('questwheel-taskCompletedToday');
       }
     }
   }, [isClient, playerStats.lastSpinTimestamp, canSpinToday]);
@@ -72,7 +93,6 @@ export default function QuestWheelPage() {
       } else {
         log.push({ date: todayStr, xpEarned: xp, tasksCompleted: taskCompleted ? 1 : 0 });
       }
-      // Sort by date descending to keep recent activity first (optional)
       return log.sort((a, b) => b.date.localeCompare(a.date));
     });
   }, [setActivityLog]);
@@ -92,7 +112,7 @@ export default function QuestWheelPage() {
     toast({ title: "Quest Removed", description: "The quest has been removed from your log.", variant: "destructive" });
   };
 
-  const handleSpinComplete = (selectedTask: Task) => {
+  const handleSpinComplete = useCallback((selectedTask: Task) => {
     setSelectedTaskToday(selectedTask);
     setTaskCompletedToday(false);
     setShowConfetti(true);
@@ -100,12 +120,12 @@ export default function QuestWheelPage() {
     setSpinAvailable(false);
     localStorage.setItem('questwheel-selectedTaskToday', JSON.stringify(selectedTask));
     localStorage.setItem('questwheel-taskCompletedToday', JSON.stringify(false));
-    updateActivityLog({ xp: 0, taskCompleted: false }); // Record activity for the day
+    updateActivityLog({ xp: 0, taskCompleted: false });
     toast({ title: "Quest Selected!", description: `Your quest for today is: "${selectedTask.text}"` });
     setTimeout(() => setShowConfetti(false), 4000);
-  };
+  }, [setPlayerStats, updateActivityLog, toast]);
 
-  const completeTask = (task: Task) => {
+  const completeTask = useCallback((task: Task) => {
     if (task.id === selectedTaskToday?.id && !taskCompletedToday) {
       const newXP = playerStats.xp + XP_PER_TASK;
       const newLevel = Math.floor(newXP / XP_FOR_NEXT_LEVEL_BASE);
@@ -126,7 +146,7 @@ export default function QuestWheelPage() {
       updateActivityLog({ xp: XP_PER_TASK, taskCompleted: true });
       toast({ title: "Quest Complete!", description: `You earned ${XP_PER_TASK} XP! ${levelUpMessage}` });
     }
-  };
+  }, [selectedTaskToday, taskCompletedToday, playerStats, setPlayerStats, updateActivityLog, toast]);
   
 
   if (!isClient) {
