@@ -207,9 +207,14 @@ export default function QuestWheelPage() {
             />
           </section>
         </main>
-        <footer className="text-center text-sm text-muted-foreground mt-8 py-4">
-          <p>&copy; {new Date().getFullYear()} {APP_NAME}. Adventure Awaits!</p>
-        </footer>
+        <footer className="text-center mt-12 text-sm text-gray-500 dark:text-gray-400">
+  <p>
+    🎮 Built with ❤️ by <a href="https://github.com/roneel47" target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-500">Roneel V</a>  
+    &nbsp;|&nbsp; XP-powered Task Spinner ⚔️ |&nbsp;
+    <span className="text-yellow-500">Level Up Your Day!</span>
+  </p>
+</footer>
+
       </div>
     </div>
   );

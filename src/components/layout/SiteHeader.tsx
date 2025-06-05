@@ -1,8 +1,10 @@
+
 "use client";
 import type { FC } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { APP_NAME } from '@/lib/constants';
-import { Shield, Home, BarChart3, Bell, UserCircle, Sun, Moon } from 'lucide-react';
+import { Home, BarChart3, Bell, UserCircle, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { useEffect } from 'react';
@@ -26,7 +28,7 @@ const SiteHeader: FC = () => {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between max-w-5xl mx-auto px-4">
         <Link href="/" className="flex items-center gap-2" aria-label={`${APP_NAME} home page`}>
-          <Shield className="w-7 h-7 text-primary" />
+          <Image src="/logo.png" alt={`${APP_NAME} logo`} width={28} height={28} className="text-primary" />
           <span className="text-xl font-bold text-primary">{APP_NAME}</span>
         </Link>
         <nav className="flex items-center gap-4 md:gap-6">
