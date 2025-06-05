@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Task, PlayerStats } from '@/lib/types';
-import { XP_PER_TASK, XP_FOR_NEXT_LEVEL_BASE } from '@/lib/constants';
+import { XP_PER_TASK, XP_FOR_NEXT_LEVEL_BASE, APP_NAME } from '@/lib/constants';
 import useLocalStorage from '@/hooks/useLocalStorage';
 
 import Header from '@/components/questwheel/Header';
@@ -13,6 +13,7 @@ import ConfettiEffect from '@/components/questwheel/ConfettiEffect';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
 import { Sun, Moon } from "lucide-react";
+import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
 
 export default function QuestWheelPage() {
