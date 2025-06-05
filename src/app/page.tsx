@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Task, PlayerStats } from '@/lib/types';
+import type { Task, PlayerStats, DailyActivity } from '@/lib/types';
 import { XP_PER_TASK, XP_FOR_NEXT_LEVEL_BASE, APP_NAME } from '@/lib/constants';
 import useLocalStorage from '@/hooks/useLocalStorage';
 
@@ -12,7 +12,6 @@ import RouletteWheel from '@/components/questwheel/RouletteWheel';
 import ConfettiEffect from '@/components/questwheel/ConfettiEffect';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast";
-import { Sun, Moon } from "lucide-react";
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
 
@@ -23,23 +22,18 @@ export default function QuestWheelPage() {
     xp: 0,
     level: 0,
     lastSpinTimestamp: null,
+    tasksCompletedTotal: 0,
   });
+  const [activityLog, setActivityLog] = useLocalStorage<DailyActivity[]>('questwheel-activityLog', []);
 
   const [selectedTaskToday, setSelectedTaskToday] = useState<Task | null>(null);
   const [taskCompletedToday, setTaskCompletedToday] = useState<boolean>(false);
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
-  const [darkMode, setDarkMode] = useLocalStorage<boolean>('questwheel-darkMode', true);
-
 
   useEffect(() => {
     setIsClient(true);
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
+  }, []);
 
   const canSpinToday = useCallback(() => {
     if (!playerStats.lastSpinTimestamp) return true;
@@ -51,9 +45,8 @@ export default function QuestWheelPage() {
   const [spinAvailable, setSpinAvailable] = useState(false);
 
    useEffect(() => {
-    if (isClient) { // Ensure this runs only on the client
+    if (isClient) { 
       setSpinAvailable(canSpinToday());
-      // If a spin was made today, check if there was a selected task that wasn't completed.
       const storedSelectedTask = localStorage.getItem('questwheel-selectedTaskToday');
       const storedTaskCompleted = localStorage.getItem('questwheel-taskCompletedToday');
       if (!canSpinToday() && storedSelectedTask) {
@@ -65,6 +58,24 @@ export default function QuestWheelPage() {
     }
   }, [isClient, playerStats.lastSpinTimestamp, canSpinToday]);
 
+
+  const updateActivityLog = useCallback(({ xp, taskCompleted }: { xp: number; taskCompleted: boolean }) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    setActivityLog(prevLog => {
+      const log = [...prevLog];
+      let todayEntry = log.find(entry => entry.date === todayStr);
+      if (todayEntry) {
+        todayEntry.xpEarned += xp;
+        if (taskCompleted) {
+          todayEntry.tasksCompleted += 1;
+        }
+      } else {
+        log.push({ date: todayStr, xpEarned: xp, tasksCompleted: taskCompleted ? 1 : 0 });
+      }
+      // Sort by date descending to keep recent activity first (optional)
+      return log.sort((a, b) => b.date.localeCompare(a.date));
+    });
+  }, [setActivityLog]);
 
   const addTask = (text: string) => {
     const newTask: Task = { id: Date.now().toString(), text, createdAt: Date.now() };
@@ -89,6 +100,7 @@ export default function QuestWheelPage() {
     setSpinAvailable(false);
     localStorage.setItem('questwheel-selectedTaskToday', JSON.stringify(selectedTask));
     localStorage.setItem('questwheel-taskCompletedToday', JSON.stringify(false));
+    updateActivityLog({ xp: 0, taskCompleted: false }); // Record activity for the day
     toast({ title: "Quest Selected!", description: `Your quest for today is: "${selectedTask.text}"` });
     setTimeout(() => setShowConfetti(false), 4000);
   };
@@ -107,20 +119,17 @@ export default function QuestWheelPage() {
         ...prev,
         xp: newXP,
         level: newLevel,
+        tasksCompletedTotal: prev.tasksCompletedTotal + 1,
       }));
       setTaskCompletedToday(true);
       localStorage.setItem('questwheel-taskCompletedToday', JSON.stringify(true));
+      updateActivityLog({ xp: XP_PER_TASK, taskCompleted: true });
       toast({ title: "Quest Complete!", description: `You earned ${XP_PER_TASK} XP! ${levelUpMessage}` });
     }
   };
   
-  const toggleDarkMode = () => {
-    setDarkMode(prev => !prev);
-  };
-
 
   if (!isClient) {
-    // Render a loading state or null during SSR/SSG
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-background text-foreground">
             <div className="animate-pulse text-2xl font-headline">Loading QuestWheel...</div>
@@ -132,11 +141,6 @@ export default function QuestWheelPage() {
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground font-body">
       <ConfettiEffect active={showConfetti} />
       <div className="w-full max-w-2xl space-y-6">
-        <div className="absolute top-4 right-4">
-            <Button onClick={toggleDarkMode} variant="outline" size="icon" aria-label="Toggle dark mode">
-                {darkMode ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
-            </Button>
-        </div>
         <Header level={playerStats.level} currentXP={playerStats.xp} />
         
         <main className="space-y-8">
