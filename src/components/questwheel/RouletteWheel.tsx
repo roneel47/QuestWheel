@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { FC } from 'react';
@@ -19,29 +20,59 @@ const RouletteWheel: FC<RouletteWheelProps> = ({ tasks, onSpinComplete, disabled
   const [isSpinning, setIsSpinning] = useState(false);
   const [displayText, setDisplayText] = useState<string>("Ready to Spin?");
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const [audioLoaded, setAudioLoaded] = useState({ spin: false, win: false });
   
   const spinSound = useRef<Tone.Player | null>(null);
   const winSound = useRef<Tone.Player | null>(null);
   const clickSound = useRef<Tone.Synth | null>(null);
 
   useEffect(() => {
-    // Initialize Tone.js objects on client side
     if (typeof window !== "undefined") {
-      spinSound.current = new Tone.Player("/sounds/spin.mp3").toDestination();
-      winSound.current = new Tone.Player("/sounds/win.mp3").toDestination();
+      spinSound.current = new Tone.Player({
+        url: "/sounds/spin.mp3",
+        onload: () => setAudioLoaded(prev => ({ ...prev, spin: true })),
+        onerror: (error) => console.error("Error loading spin sound:", error),
+      }).toDestination();
+
+      winSound.current = new Tone.Player({
+        url: "/sounds/win.mp3",
+        onload: () => setAudioLoaded(prev => ({ ...prev, win: true })),
+        onerror: (error) => console.error("Error loading win sound:", error),
+      }).toDestination();
+      
       clickSound.current = new Tone.MembraneSynth().toDestination();
       clickSound.current.volume.value = -10; // Lower volume for click
     }
+
+    return () => {
+      spinSound.current?.dispose();
+      winSound.current?.dispose();
+      clickSound.current?.dispose();
+    };
   }, []);
 
   const playSound = async (soundType: 'spin' | 'win' | 'click') => {
-    await Tone.start(); // Ensure AudioContext is started
-    if (soundType === 'spin' && spinSound.current) {
-      spinSound.current.start();
-    } else if (soundType === 'win' && winSound.current) {
-      winSound.current.start();
-    } else if (soundType === 'click' && clickSound.current) {
-      clickSound.current.triggerAttackRelease("C2", "8n");
+    if (typeof window === "undefined") return;
+    try {
+      await Tone.start(); // Ensure AudioContext is started by user gesture
+
+      if (soundType === 'spin' && spinSound.current) {
+        if (audioLoaded.spin) {
+          spinSound.current.start();
+        } else {
+          console.warn("Spin sound not loaded yet or player not initialized. Ensure /sounds/spin.mp3 exists in public folder.");
+        }
+      } else if (soundType === 'win' && winSound.current) {
+        if (audioLoaded.win) {
+          winSound.current.start();
+        } else {
+          console.warn("Win sound not loaded yet or player not initialized. Ensure /sounds/win.mp3 exists in public folder.");
+        }
+      } else if (soundType === 'click' && clickSound.current) {
+        clickSound.current.triggerAttackRelease("C2", "8n");
+      }
+    } catch (error) {
+      console.error(`Error playing sound ${soundType}:`, error);
     }
   };
 
