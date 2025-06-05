@@ -56,8 +56,8 @@ tsconfig.json       # TypeScript configuration
 
 1.  Clone the repository:
     ```bash
-    git clone <your-repository-url>
-    cd <project-directory-name>
+    git clone https://github.com/roneel47/QuestWheel
+    cd QuestWheel
     ```
 2.  Install dependencies:
     ```bash
